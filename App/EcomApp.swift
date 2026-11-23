@@ -98,20 +98,23 @@ final class WebModel: NSObject, ObservableObject, WKNavigationDelegate, WKUIDele
     func webView(_ webView: WKWebView,
                  decidePolicyFor action: WKNavigationAction,
                  decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
-        guard let url = action.request.url else { return decisionHandler(.allow) }
+        guard let url = action.request.url else { return decisionHandler(.cancel) }
         let isMainFrame = action.targetFrame?.isMainFrame ?? true
-        if isMainFrame, let scheme = url.scheme?.lowercased() {
-            if scheme == "http" || scheme == "https" {
-                if url.host?.lowercased() != EcomLinks.host {
-                    UIApplication.shared.open(url)
-                    return decisionHandler(.cancel)
-                }
-            } else if scheme != "about" && scheme != "blob" && scheme != "data" {
-                UIApplication.shared.open(url)
-                return decisionHandler(.cancel)
-            }
+        // 사이트 안의 작은 틀(iframe)은 사이트가 정한 대로 둔다.
+        guard isMainFrame else { return decisionHandler(.allow) }
+        // 앱 화면 전체에는 ecom(https)과 빈 화면만 연다.
+        if EcomLinks.isSite(url) || url.absoluteString == "about:blank" {
+            return decisionHandler(.allow)
         }
-        decisionHandler(.allow)
+        openOutside(url)
+        decisionHandler(.cancel)
+    }
+
+    /// 앱 밖으로 넘기는 주소 — 웹 주소는 Safari, 전화 · 메일은 그 앱. 나머지(data: · blob: · javascript: · file: 등)는 버린다.
+    private func openOutside(_ url: URL) {
+        let allowed: Set<String> = ["https", "http", "mailto", "tel", "sms"]
+        guard let scheme = url.scheme?.lowercased(), allowed.contains(scheme) else { return }
+        UIApplication.shared.open(url)
     }
 
     // 새 창(target=_blank)으로 여는 링크.
@@ -120,10 +123,10 @@ final class WebModel: NSObject, ObservableObject, WKNavigationDelegate, WKUIDele
                  for action: WKNavigationAction,
                  windowFeatures: WKWindowFeatures) -> WKWebView? {
         if let url = action.request.url {
-            if url.host?.lowercased() == EcomLinks.host {
+            if EcomLinks.isSite(url) {
                 webView.load(action.request)
             } else {
-                UIApplication.shared.open(url)
+                openOutside(url)
             }
         }
         return nil

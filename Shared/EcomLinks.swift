@@ -24,10 +24,21 @@ enum EcomLinks {
                 .queryItems?.first(where: { $0.name == "r" })?.value,
               !route.isEmpty
         else { return site }
+        let candidate: URL?
         if route.hasPrefix("#") {
-            return URL(string: site.absoluteString + route) ?? site
+            candidate = URL(string: site.absoluteString + route)
+        } else {
+            // 사이트 안 경로만 받는다 — 다른 주소 · 다른 방식(data: 등) · "//호스트" 는 버린다.
+            if route.contains(":") || route.contains("//") || route.contains("\\") { return site }
+            let trimmed = route.hasPrefix("/") ? String(route.dropFirst()) : route
+            candidate = URL(string: trimmed, relativeTo: site)?.absoluteURL
         }
-        let trimmed = route.hasPrefix("/") ? String(route.dropFirst()) : route
-        return URL(string: trimmed, relativeTo: site)?.absoluteURL ?? site
+        return isSite(candidate) ? candidate! : site
+    }
+
+    /// ecom 사이트 주소인가(https · 같은 호스트).
+    static func isSite(_ url: URL?) -> Bool {
+        guard let url else { return false }
+        return url.scheme?.lowercased() == "https" && url.host?.lowercased() == host
     }
 }
