@@ -36,6 +36,7 @@ jobs:
             -sdk iphoneos -destination 'generic/platform=iOS' \
             -archivePath "$RUNNER_TEMP/Ecom.xcarchive" archive \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            MARKETING_VERSION="0.1.${{ github.run_number }}" CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
             > "$RUNNER_TEMP/build.log" 2>&1
           status=$?
           grep -E "error:|\*\* ARCHIVE" "$RUNNER_TEMP/build.log" | head -60
@@ -52,6 +53,49 @@ jobs:
           ls -la Ecom.ipa
           /usr/libexec/PlistBuddy -c "Print CFBundleIdentifier" "$APP/Info.plist"
           /usr/libexec/PlistBuddy -c "Print MinimumOSVersion" "$APP/Info.plist"
+          /usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" "$APP/Info.plist"
+
+      - name: SideStore 앱 목록(source.json) 만들기
+        env:
+          VERSION: "0.1.${{ github.run_number }}"
+          BUILD: "${{ github.run_number }}"
+          NOTE: ${{ github.event.head_commit.message || 'manual build' }}
+          REPO: ${{ github.repository }}
+        run: |
+          python3 - <<'PY'
+          import datetime, json, os
+          repo = os.environ["REPO"]
+          rel = f"https://github.com/{repo}/releases/download/latest"
+          note = os.environ["NOTE"].splitlines()[0][:200]
+          source = {
+              "name": "ECOM",
+              "identifier": "com.ecom0101.source",
+              "sourceURL": f"{rel}/source.json",
+              "apps": [{
+                  "name": "ECOM",
+                  "bundleIdentifier": "com.ecom0101.terminal",
+                  "developerName": "ecom",
+                  "subtitle": "시장 화면 · 시세 위젯",
+                  "localizedDescription": "ecom 화면과 홈 화면 · 잠금 화면 시세 위젯(코스피 · 코스닥 · 원·달러 · S&P 500 · 나스닥 · 오늘 경보 · 주의).",
+                  "iconURL": f"https://raw.githubusercontent.com/{repo}/main/App/Assets.xcassets/AppIcon.appiconset/icon-1024.png",
+                  "tintColor": "005034",
+                  "versions": [{
+                      "version": os.environ["VERSION"],
+                      "buildVersion": os.environ["BUILD"],
+                      "date": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                      "localizedDescription": note,
+                      "downloadURL": f"{rel}/Ecom.ipa",
+                      "size": os.path.getsize("Ecom.ipa"),
+                      "minOSVersion": "17.0",
+                  }],
+                  "appPermissions": {"entitlements": [], "privacy": {}},
+              }],
+              "news": [],
+          }
+          with open("source.json", "w", encoding="utf-8") as f:
+              json.dump(source, f, ensure_ascii=False, indent=2)
+          print(json.dumps(source["apps"][0]["versions"][0], ensure_ascii=False))
+          PY
 
       - name: 빌드 기록 올리기
         if: always()
@@ -74,4 +118,4 @@ jobs:
         run: |
           gh release view latest >/dev/null 2>&1 || \
             gh release create latest --title "최신 빌드" --notes "main 최신 커밋의 서명 없는 .ipa" --prerelease
-          gh release upload latest Ecom.ipa --clobber
+          gh release upload latest Ecom.ipa source.json --clobber

@@ -9,6 +9,12 @@
 
 [최신 빌드](../../releases/tag/latest)의 `Ecom.ipa` — 서명이 없는 파일이라 폰에 넣을 때 Apple ID 로 서명한다.
 
+SideStore 앱 목록 주소(새 빌드가 나오면 폰에서 바로 업데이트):
+
+```
+https://github.com/0101-commits/ecom-ios/releases/download/latest/source.json
+```
+
 ## 만드는 법
 
 Mac 없이 GitHub 의 클라우드 Mac 이 만든다(`.github/workflows/build.yml`). `main` 에 올리면 10분 안에 새 `Ecom.ipa` 가 릴리스에 올라간다.
